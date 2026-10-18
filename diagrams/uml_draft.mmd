@@ -1,0 +1,47 @@
+classDiagram
+    class Owner {
+        +int ownerId
+        +str name
+        +str email
+        +str phone
+        +list~Pet~ pets
+        +addOwner() Owner
+        +editOwner(name, email, phone) void
+        +removeOwner() void
+        +addPet(pet) void
+    }
+
+    class Pet {
+        +int petId
+        +str name
+        +str species
+        +str breed
+        +int age
+        +Owner owner
+        +addPet(owner) Pet
+        +editPet(name, species, breed, age) void
+        +removePet() void
+    }
+
+    class Walk {
+        +int walkId
+        +Pet pet
+        +datetime startTime
+        +int durationMinutes
+        +str status
+        +schedule() void
+        +cancel() void
+    }
+
+    class WalkScheduler {
+        +list~Walk~ walks
+        +scheduleWalk(pet, startTime, durationMinutes) Walk
+        +cancelWalk(walkId) void
+        +rescheduleWalk(walkId, newStartTime) void
+        +editWalk(walkId, durationMinutes) void
+        +getWalksForPet(petId) list~Walk~
+    }
+
+    Owner "1" --> "0..*" Pet : owns
+    Pet "1" --> "0..*" Walk : has
+    WalkScheduler "1" o-- "0..*" Walk : manages
