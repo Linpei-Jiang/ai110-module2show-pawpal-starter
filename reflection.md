@@ -100,12 +100,12 @@ I used Claude Code for most of the project: turning my brainstormed classes into
 
 **a. What went well**
 
-- What part of this project are you most satisfied with?
+- The part that went well is when I ran the code and the app did open with the correct functions that it was supposed to have. For example, adding a pet (name/breed/etc) and having their owner information as well. Additionally, having the schedules for a walk or food, having the action that can repeat the task.
 
 **b. What you would improve**
 
-- If you had another iteration, what would you improve or redesign?
+- I would say the overall UI of this project because some of these part just looks too AI generated, which it is but I think having a different UI can boost UX.
 
 **c. Key takeaway**
 
-- What is one important thing you learned about designing systems or working with AI on this project?
+- Designing systems you have to look really close about bugs that might happen when you run the code and most importantly if there is any logic issues with the overall performance. Other than that AI tools helped alot and is a great tool to be learning and how to give directions.
