@@ -1,15 +1,69 @@
 classDiagram
-    %% Replace the placeholders below with your actual classes, attributes, methods, and relationships.
-    %% Keep this file updated so it matches your final implementation.
-
-    class ClassName {
-        +type attribute
-        +method() returnType
+    class Frequency {
+        <<enumeration>>
+        ONCE
+        DAILY
+        WEEKLY
     }
 
-    class AnotherClass {
-        +type attribute
-        +method() returnType
+    class Task {
+        +str description
+        +datetime time
+        +Frequency frequency
+        +bool completed
+        +Pet pet
+        +int durationMinutes
+        +list~int~ weekdays
+        +str seriesId
+        +endTime() datetime
+        +overlaps(other) bool
+        +markComplete() void
+        +reschedule(newTime) void
+        +nextOccurrence(after) Task
     }
 
-    ClassName --> AnotherClass : relationship
+    class Pet {
+        +str name
+        +str species
+        +str breed
+        +int age
+        +Owner owner
+        +list~Task~ tasks
+        +editPet(name, species, breed, age) void
+        +addTask(task) Task
+        +removeTask(task) void
+    }
+
+    class Owner {
+        +str name
+        +str email
+        +str phone
+        +list~Pet~ pets
+        +editOwner(name, email, phone) void
+        +addPet(pet) Pet
+        +removePet(pet) void
+        +getAllTasks() list~Task~
+    }
+
+    class Scheduler {
+        +Owner owner
+        +getAllTasks() list~Task~
+        +sortByTime(tasks) list~Task~
+        +filterTasks(pet, completed, day) list~Task~
+        +getTasksForDay(day, includeCompleted) list~Task~
+        +getTasksForPet(pet) list~Task~
+        +getPendingTasks() list~Task~
+        +getOverdueTasks(now) list~Task~
+        +findConflicts() list
+        +conflictsWith(task) list~Task~
+        +findNextFreeSlot(after, durationMinutes) datetime
+        +addTask(pet, task, allowPast) Task
+        +completeTask(task, now) Task
+        +cancelTask(task) void
+        +cancelSeries(task) int
+    }
+
+    Owner "1" <--> "0..*" Pet : owns
+    Pet "1" <--> "0..*" Task : has
+    Task --> Frequency : frequency
+    Scheduler "1" --> "1" Owner : reads getAllTasks()
