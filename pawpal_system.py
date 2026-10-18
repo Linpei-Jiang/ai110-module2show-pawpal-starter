@@ -136,8 +136,8 @@ class Pet:
         return task
 
     def remove_task(self, task: Task) -> None:
-        """Detach a task from this pet."""
-        self.tasks.remove(task)
+        """Detach a task from this pet (matched by identity, since equal-looking tasks can exist)."""
+        self.tasks = [t for t in self.tasks if t is not task]
         task.pet = None
 
 
@@ -161,8 +161,8 @@ class Owner:
         return pet
 
     def remove_pet(self, pet: Pet) -> None:
-        """Remove a pet from this owner."""
-        self.pets.remove(pet)
+        """Remove a pet from this owner (matched by identity, not by equal-looking fields)."""
+        self.pets = [p for p in self.pets if p is not pet]
         pet.owner = None
 
     def get_all_tasks(self) -> list[Task]:

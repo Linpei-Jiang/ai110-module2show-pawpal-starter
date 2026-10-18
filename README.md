@@ -69,18 +69,36 @@ Paste a sample of your app's CLI or Streamlit output here so a reader can see wh
 ## 🧪 Testing PawPal+
 
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
+
+(Run it from the project root with your virtual environment active, after `pip install -r requirements.txt`.)
+
+The 41 tests in [tests/test_pawpal.py](tests/test_pawpal.py) cover the scheduler logic in [pawpal_system.py](pawpal_system.py):
+
+- **Sorting:** tasks come back in chronological order across multiple pets, same-time ties are stable, midnight boundaries work, and sorting never modifies the original lists.
+- **Filtering:** pet, pet name (case-insensitive), completion status and day filters, alone and combined.
+- **Recurring tasks:** completing a daily or weekly task creates exactly one new task for the next occurrence on the same pet. Covered edge cases: year and leap-day boundaries, weekly tasks on chosen weekdays wrapping over the weekend, late completion skipping past dates, completing twice, one-off tasks, and tasks with no pet.
+- **Conflict detection:** same-time tasks are flagged for one pet and for different pets, overlapping durations are caught, back-to-back tasks are not, three-way clashes give three pairs, and completing or cancelling a task clears its conflict. Warnings are plain messages that never raise.
+- **Free slots, validation and cleanup:** next-free-slot search, rejection of bad input (empty description, bad duration, past time), cancelling a whole recurring series, and removing the exact task or pet when two look identical.
+- **Empty states:** an owner with no pets and a pet with no tasks.
+
+Writing these tests found one real bug: removing a task or pet used `list.remove()`, which matches by equality, so cancelling the second of two identical tasks removed the first and left the cancelled one orphaned in the list. Removal now matches by identity.
 
 Sample test output:
 
 ```
-# Paste your pytest output here
+============================= test session starts ==============================
+platform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/gingerjournal/Desktop/AI101-CodePath/ai110-module2show-pawpal-starter
+collected 41 items
+
+tests/test_pawpal.py .........................................           [100%]
+
+============================== 41 passed in 0.04s ==============================
 ```
+
+**Confidence level: ⭐⭐⭐⭐ (4 out of 5).** The core scheduling logic (sorting, filtering, recurrence and conflict detection) is covered by happy-path and edge-case tests that all pass. I held back the fifth star because the Streamlit UI in `app.py` has no automated tests (I only checked it by hand and with a short scripted run), conflicts are only compared within a single timeline with no time zone or daylight-saving handling, and nothing is saved between sessions.
 
 ## 📐 Smarter Scheduling
 
