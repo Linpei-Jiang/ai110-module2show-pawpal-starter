@@ -7,16 +7,16 @@ from pawpal_system import Frequency, Owner, Pet, Scheduler, Task
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
-def task_rows(tasks):
-    """Table rows for st.table."""
+def task_rows(tasks, flagged=frozenset()):
+    """Table rows for st.table; `flagged` holds ids of tasks that are part of a conflict."""
     return [
         {
-            "when": t.time.strftime("%a %I:%M %p"),
-            "pet": t.pet.name,
-            "task": t.description,
-            "minutes": t.duration_minutes,
-            "repeats": t.frequency.value,
-            "done": t.completed,
+            "": "⚠️" if id(t) in flagged else "",
+            "When": f"{t.time:%a %I:%M %p} - {t.end_time:%I:%M %p}",
+            "Pet": t.pet.name,
+            "Task": t.description,
+            "Repeats": t.frequency.value,
+            "Status": "✅ done" if t.completed else "⏳ pending",
         }
         for t in tasks
     ]
@@ -25,52 +25,28 @@ def task_rows(tasks):
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
 st.title("🐾 PawPal+")
-
-st.markdown(
-    """
-Welcome to the PawPal+ starter app.
-
-This file is intentionally thin. It gives you a working Streamlit app so you can start quickly,
-but **it does not implement the project logic**. Your job is to design the system and build it.
-
-Use this app as your interactive demo once your backend classes/functions exist.
-"""
+st.caption(
+    "Plan walks, meals, and medication for all your pets in one place. "
+    "Tasks are sorted by time, overlaps are flagged, and repeating tasks reschedule themselves."
 )
-
-with st.expander("Scenario", expanded=True):
-    st.markdown(
-        """
-**PawPal+** is a pet care planning assistant. It helps a pet owner plan care tasks
-for their pet(s) based on constraints like time, priority, and preferences.
-
-You will design and implement the scheduling logic and connect it to this Streamlit UI.
-"""
-    )
-
-with st.expander("What you need to build", expanded=True):
-    st.markdown(
-        """
-At minimum, your system should:
-- Represent pet care tasks (what needs to happen, how long it takes, priority)
-- Represent the pet and the owner (basic info and preferences)
-- Build a plan/schedule for a day that chooses and orders tasks based on constraints
-- Explain the plan (why each task was chosen and when it happens)
-"""
-    )
-
-st.divider()
 
 # Keep one Owner alive across Streamlit reruns.
 if "owner" not in st.session_state:
     st.session_state.owner = Owner("Jordan")
 owner = st.session_state.owner
+scheduler = Scheduler(owner)
 
-st.subheader("Owner")
+# A message queued by an action (complete, cancel, ...) just before st.rerun().
+if "flash" in st.session_state:
+    st.success(st.session_state.pop("flash"))
+
+# --- Owner and pets ------------------------------------------------------------------
+
+st.subheader("1. Owner and pets")
 owner_name = st.text_input("Owner name", value=owner.name)
 if owner_name != owner.name:
     owner.edit_owner(owner_name, owner.email, owner.phone)
 
-st.subheader("Add a Pet")
 col1, col2 = st.columns(2)
 with col1:
     pet_name = st.text_input("Pet name", value="Mochi")
@@ -80,20 +56,20 @@ with col2:
 if st.button("Add pet"):
     if not pet_name.strip():
         st.error("Please enter a pet name.")
-    elif any(p.name == pet_name.strip() for p in owner.pets):
-        st.warning(f"{pet_name} is already on your list.")
+    elif any(p.name.lower() == pet_name.strip().lower() for p in owner.pets):
+        st.warning(f"{pet_name.strip()} is already on your list.")
     else:
         owner.add_pet(Pet(pet_name.strip(), species))
-        st.success(f"Added {pet_name}.")
+        st.success(f"Added {pet_name.strip()}.")
 
 if owner.pets:
-    st.write("Your pets: " + ", ".join(f"{p.name} ({p.species})" for p in owner.pets))
+    st.write("Your pets: " + ", ".join(f"**{p.name}** ({p.species})" for p in owner.pets))
 else:
-    st.info("No pets yet. Add one above.")
+    st.info("No pets yet. Add one above to start scheduling.")
 
-scheduler = Scheduler(owner)
+# --- Schedule a task -----------------------------------------------------------------
 
-st.markdown("### Schedule a Task")
+st.subheader("2. Schedule a task")
 
 if owner.pets:
     col1, col2, col3 = st.columns(3)
@@ -109,8 +85,8 @@ if owner.pets:
 
     weekdays: list[int] = []
     if task_freq == Frequency.WEEKLY.value:
-        chosen = st.multiselect("On these days (optional)", WEEKDAYS)
-        weekdays = [WEEKDAYS.index(d) for d in chosen]
+        chosen_days = st.multiselect("Only on these days (optional)", WEEKDAYS)
+        weekdays = [WEEKDAYS.index(d) for d in chosen_days]
 
     if st.button("Add task"):
         pet = next(p for p in owner.pets if p.name == task_pet)
@@ -121,50 +97,98 @@ if owner.pets:
             duration_minutes=int(task_duration),
             weekdays=weekdays,
         )
-        clashes = scheduler.conflicts_with(task)
+        warning = scheduler.conflict_warning_for(task, pet)  # checked before adding
         try:
             scheduler.add_task(pet, task)
         except ValueError as err:
-            st.error(str(err))
+            st.error(f"Could not add the task: {err}")
         else:
-            st.success(f"Scheduled '{task_title}' for {pet.name} at {task.time:%a %I:%M %p}.")
-            if clashes:
+            st.success(f"Scheduled '{task.description}' for {pet.name}, {task.time:%a %I:%M %p}.")
+            if warning:
                 free = scheduler.find_next_free_slot(task.time, task.duration_minutes)
                 st.warning(
-                    "That overlaps: "
-                    + ", ".join(f"{c.pet.name} - {c.description} ({c.time:%I:%M %p})" for c in clashes)
-                    + f". Next free slot: {free:%a %I:%M %p}."
+                    f"{warning}\n\nThe task was still added. If you'd rather avoid the overlap, "
+                    f"the next free {task.duration_minutes}-minute slot is **{free:%a %I:%M %p}**."
                 )
 else:
     st.info("Add a pet before scheduling tasks.")
 
-st.markdown("### Your Tasks")
-if "flash" in st.session_state:
-    st.success(st.session_state.pop("flash"))
+# --- Today's schedule ----------------------------------------------------------------
+
+st.subheader("3. Today's schedule")
+
+today = date.today()
+todays = scheduler.get_tasks_for_day(today)  # sorted by time
+conflicts = scheduler.find_conflicts()
+conflict_messages = scheduler.get_conflict_warnings()
+todays_conflicts = [
+    (pair, msg) for pair, msg in zip(conflicts, conflict_messages) if pair[0].time.date() == today
+]
+flagged = {id(t) for (a, b), _ in todays_conflicts for t in (a, b)}
+overdue = scheduler.get_overdue_tasks()
+
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Tasks today", len(todays))
+m2.metric("Still to do", sum(1 for t in todays if not t.completed))
+m3.metric("Overdue", len(overdue))
+m4.metric("Conflicts", len(todays_conflicts))
+
+if todays_conflicts:
+    lines = []
+    for (a, b), msg in todays_conflicts:
+        free = scheduler.find_next_free_slot(b.time, b.duration_minutes)
+        lines.append(f"- {msg.removeprefix('Warning: ')} Next free slot: **{free:%I:%M %p}**.")
+    st.warning(
+        "**Heads up: some tasks overlap.** Move one of each pair, or do them one after the other.\n\n"
+        + "\n".join(lines)
+    )
+elif todays:
+    st.success("No scheduling conflicts today.")
+
+if len(conflicts) > len(todays_conflicts):
+    st.caption(f"{len(conflicts) - len(todays_conflicts)} more conflict(s) on other days.")
+
+if todays:
+    st.table(task_rows(todays, flagged))
+    st.caption("⚠️ marks a task that overlaps another pending task.")
+else:
+    st.info("Nothing scheduled for today.")
+
+# --- All tasks -------------------------------------------------------------------------
+
+st.subheader("4. Manage tasks")
+
 col1, col2 = st.columns(2)
 with col1:
     pet_filter = st.selectbox("Show pet", ["All pets"] + [p.name for p in owner.pets])
 with col2:
-    show_done = st.checkbox("Show completed", value=False)
+    status_filter = st.radio("Show", ["Pending", "Completed", "All"], horizontal=True)
 
-chosen_pet = next((p for p in owner.pets if p.name == pet_filter), None)
-visible = scheduler.filter_tasks(pet=chosen_pet, completed=None if show_done else False)
+visible = scheduler.filter_tasks(
+    pet_name=None if pet_filter == "All pets" else pet_filter,
+    completed={"Pending": False, "Completed": True, "All": None}[status_filter],
+)
 
-for t in scheduler.get_overdue_tasks():
-    if chosen_pet is None or t.pet is chosen_pet:
-        st.error(f"Overdue: {t.pet.name} - {t.description} was due {t.time:%a %I:%M %p}")
+for t in overdue:
+    if pet_filter in ("All pets", t.pet.name):
+        st.error(f"Overdue: {t.pet.name} - {t.description} was due {t.time:%a %I:%M %p}.")
 
 if visible:
-    st.table(task_rows(visible))
+    all_flagged = {id(t) for pair in conflicts for t in pair}
+    st.table(task_rows(visible, all_flagged))
 
-    labels = {f"{t.pet.name} - {t.description} ({t.time:%a %I:%M %p})": t for t in visible if not t.completed}
+    labels = {
+        f"{t.pet.name} - {t.description} ({t.time:%a %I:%M %p})": t for t in visible if not t.completed
+    }
     if labels:
         picked = labels[st.selectbox("Pick a task", list(labels))]
         col1, col2, col3 = st.columns(3)
         if col1.button("Mark complete"):
             following = scheduler.complete_task(picked)
             st.session_state.flash = (
-                f"Done. Next one scheduled for {following.time:%a %I:%M %p}." if following else "Done."
+                f"Done. The next one is scheduled for {following.time:%a %I:%M %p}."
+                if following
+                else "Done."
             )
             st.rerun()
         if col2.button("Cancel task"):
@@ -175,21 +199,4 @@ if visible:
             st.session_state.flash = f"Removed {scheduler.cancel_series(picked)} task(s)."
             st.rerun()
 else:
-    st.info("No tasks to show.")
-
-st.divider()
-
-st.subheader("Build Schedule")
-
-if st.button("Generate schedule"):
-    todays = scheduler.get_tasks_for_day()
-    if not todays:
-        st.info("Nothing scheduled today.")
-    else:
-        st.write(f"Today's Schedule for {owner.name}")
-        st.table(task_rows(todays))
-    for a, b in scheduler.find_conflicts():
-        st.warning(
-            f"Conflict: {a.pet.name} - {a.description} ({a.time:%a %I:%M %p}-{a.end_time:%I:%M %p}) "
-            f"overlaps {b.pet.name} - {b.description} ({b.time:%I:%M %p}-{b.end_time:%I:%M %p})"
-        )
+    st.info("No tasks match.")

@@ -22,6 +22,19 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## Features
+
+- **Multiple pets, one owner:** an owner manages any number of pets, and every feature below works across all of them.
+- **Sorting by time:** tasks are always shown in chronological order, with ties broken by pet name so the order never shuffles (`Scheduler.sort_by_time()`).
+- **Filtering:** narrow the list by pet name, pending or completed status, or day, alone or combined (`Scheduler.filter_tasks()`).
+- **Conflict warnings:** two tasks conflict when their time windows overlap, whether they belong to the same pet or different pets. The app shows a readable warning and suggests the next free slot, and never blocks you from adding the task (`find_conflicts()`, `get_conflict_warnings()`, `conflict_warning_for()`, `find_next_free_slot()`).
+- **Daily and weekly recurrence:** completing a repeating task automatically creates the next occurrence, optionally only on chosen weekdays, and never duplicates it (`Task.mark_complete()`, `Task.next_occurrence()`).
+- **Cancel a whole series:** remove every repeat of a recurring task at once (`Scheduler.cancel_series()`).
+- **Overdue tracking:** pending tasks whose time has passed are flagged (`Scheduler.get_overdue_tasks()`).
+- **Input validation:** empty descriptions, zero durations, and times in the past are rejected with a clear message (`Scheduler.add_task()`).
+
+Details for each algorithm are in [Smarter Scheduling](#-smarter-scheduling).
+
 ## Implementation summary
 
 The core logic lives in [pawpal_system.py](pawpal_system.py) and is built from four dataclasses:
@@ -29,9 +42,9 @@ The core logic lives in [pawpal_system.py](pawpal_system.py) and is built from f
 - **`Task`**: one activity (description, time, frequency, completed). A daily or weekly task can generate its next occurrence.
 - **`Pet`**: pet details plus its own list of `Task`s.
 - **`Owner`**: holds multiple `Pet`s. `get_all_tasks()` gathers every pet's tasks into one list.
-- **`Scheduler`**: the brain. It is given an `Owner` and always reads tasks through `owner.get_all_tasks()`, so it works across all pets instead of one. It sorts by time, filters by day, pet, or pending status, flags tasks scheduled at the same time, and completes tasks (creating the next one for recurring tasks).
+- **`Scheduler`**: the brain. It is given an `Owner` and always reads tasks through `owner.get_all_tasks()`, so it works across all pets instead of one. It sorts by time, filters by day, pet, or pending status, warns about overlapping tasks, and completes tasks (creating the next one for recurring tasks).
 
-How they fit together: `Owner` → many `Pet` → many `Task`, with each child linking back to its parent. `Scheduler` sits on top of the `Owner` and holds no task data of its own. [main.py](main.py) is a demo script that builds an owner, two pets, and several tasks, then prints today's schedule. [tests/test_pawpal.py](tests/test_pawpal.py) holds the tests, and [diagrams/uml.mmd](diagrams/uml.mmd) has the class diagram.
+How they fit together: `Owner` → many `Pet` → many `Task`, with each child linking back to its parent. `Scheduler` sits on top of the `Owner` and holds no task data of its own. [main.py](main.py) is a demo script that builds an owner, two pets, and several tasks, then prints today's schedule. [tests/test_pawpal.py](tests/test_pawpal.py) holds the tests, and [diagrams/uml_final.mmd](diagrams/uml_final.mmd) has the final class diagram (Mermaid).
 
 ```bash
 python main.py
@@ -59,12 +72,16 @@ pip install -r requirements.txt
 
 ## 🖥️ Sample Output
 
-Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
+Today's schedule as printed by `python main.py` (sorted by time, with conflict warnings below it). The full run is shown in the [Demo Walkthrough](#-demo-walkthrough).
 
-[x] 07:30 AM  Rex    Morning walk (daily)
-[ ] 07:30 AM  Luna   Breakfast (daily)
-[ ] 12:15 PM  Luna   Flea medication (weekly)
-[ ] 06:00 PM  Rex    Evening walk (daily)
+```
+Today's Schedule for Alex Rivera
+[ ] 07:30 AM-08:00 AM  Rex    Morning walk (once)
+[x] 07:40 AM-07:50 AM  Luna   Breakfast (once)
+[ ] 09:00 AM-09:30 AM  Luna   Grooming (once)
+[ ] 09:00 AM-10:00 AM  Rex    Vet check (once)
+Warning: Luna's 'Grooming' (09:00 AM-09:30 AM) overlaps Rex's 'Vet check' (09:00 AM-10:00 AM).
+```
 
 ## 🧪 Testing PawPal+
 
@@ -122,7 +139,7 @@ Everything below lives in [pawpal_system.py](pawpal_system.py). Every feature wo
 Each task has a `duration_minutes`, so two tasks conflict when their time windows overlap, whether they belong to the same pet or different pets. A walk from 8:00 to 8:30 overlaps a feeding at 8:15, but a task that starts exactly when another ends is fine. Completed tasks are ignored.
 
 - `find_conflicts()` finds every overlapping pair of pending tasks. It sorts once, then sweeps through the tasks keeping the ones still running, which avoids comparing every pair.
-- `get_conflict_warnings()` turns those pairs into readable messages, such as `Warning: Luna's 'Grooming' (09:00 AM-09:30 AM) overlaps Rex's 'Vet check' (09:00 AM-10:00 AM).` or `Warning: Luna has two tasks at the same time: ...` for the same pet.
+- `get_conflict_warnings()` turns those pairs into readable messages, such as `Warning: Luna's 'Grooming' (09:00 AM-09:30 AM) overlaps Rex's 'Vet check' (09:00 AM-10:00 AM).` or `Warning: Luna has overlapping tasks: ...` for the same pet.
 - `conflict_warning_for(task, pet)` checks a task before it is added and returns a warning string or `None`.
 - `find_next_free_slot(after, duration_minutes)` suggests the earliest time a task of that length fits.
 
@@ -141,12 +158,112 @@ A task can repeat `once`, `daily`, or `weekly` (weekly tasks can optionally run 
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+### Run it
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+```bash
+streamlit run app.py   # the web app
+python main.py         # a command-line demo of the scheduler
+```
+
+### What the app lets you do
+
+The Streamlit app ([app.py](app.py)) has four sections, top to bottom:
+
+1. **Owner and pets:** set the owner's name and add pets (name and species). Duplicate names are rejected.
+2. **Schedule a task:** choose a pet, a description, a date and time, a duration, and how often it repeats (once, daily, or weekly, with optional weekdays). Bad input such as a time in the past shows an error. If the new task overlaps another one, it is still added, and a warning appears with the next free slot.
+3. **Today's schedule:** a time-sorted table of today's tasks with counts for tasks today, still to do, overdue, and conflicts. Overlapping tasks are marked with a warning icon, and a yellow warning box explains each clash in plain words and suggests a free time. If nothing clashes, a green message says so.
+4. **Manage tasks:** filter by pet and by pending, completed, or all. Pick a task and mark it complete, cancel it, or cancel all of its repeats. Overdue tasks appear as red messages.
+
+### Example workflow
+
+1. Add two pets, for example **Rex** (dog) and **Luna** (cat).
+2. Schedule Rex's **Morning walk** at 7:30 AM, repeating daily, for 30 minutes. (Pick today's date with a time later than now, or tomorrow's date, because the app rejects times in the past.)
+3. Schedule Luna's **Breakfast** at 7:40 AM for 10 minutes. The app warns that it overlaps Rex's walk and suggests 8:00 AM as the next free slot; the task is still added.
+4. Open **Today's schedule**. Both tasks appear in time order with a warning icon, the Conflicts counter shows 1, and the warning box describes the overlap.
+5. Under **Manage tasks**, pick the Morning walk and press **Mark complete**. It is marked done, tomorrow's walk is created automatically, and the conflict disappears.
+6. Filter by **Luna** or switch to **Completed** to see the filters in action.
+
+### Scheduler behaviors on display
+
+- **Sorting:** tasks entered out of order always appear earliest first.
+- **Filtering:** by pet and by status, across all pets.
+- **Conflict warnings:** same-pet and different-pet overlaps, as messages rather than errors.
+- **Recurrence:** completing a daily or weekly task schedules the next one.
+- **Validation:** past times and bad durations are rejected without crashing.
+
+### Sample CLI output
+
+`python main.py` adds tasks out of order, then prints them unsorted, sorted, filtered, and as today's schedule with conflict warnings. The date in the heading is the day you run it.
+
+```
+Warning: Rex's 'Morning walk' (07:30 AM-08:00 AM) overlaps Luna's 'Breakfast' (07:40 AM-07:50 AM).
+
+Adding two tasks that clash with existing ones:
+Warning: Luna's 'Grooming' (09:00 AM-09:30 AM) overlaps Rex's 'Vet check' (09:00 AM-10:00 AM).
+Warning: Luna has overlapping tasks: 'Brush fur' (12:15 PM-12:25 PM) and 'Flea medication' (12:15 PM-12:20 PM).
+
+Insertion order (unsorted, straight from the owner):
+  [ ] 06:00 PM  Rex    Evening walk
+  [ ] 07:30 AM  Rex    Morning walk
+  [ ] 09:00 AM  Rex    Vet check
+  [ ] 12:15 PM  Luna   Flea medication
+  [x] 07:40 AM  Luna   Breakfast
+  [ ] 04:00 PM  Luna   Play time
+  [ ] 09:00 AM  Luna   Grooming
+  [ ] 12:15 PM  Luna   Brush fur
+
+Sorted by time:
+  [ ] 07:30 AM  Rex    Morning walk
+  [x] 07:40 AM  Luna   Breakfast
+  [ ] 09:00 AM  Luna   Grooming
+  [ ] 09:00 AM  Rex    Vet check
+  [ ] 12:15 PM  Luna   Flea medication
+  [ ] 12:15 PM  Luna   Brush fur
+  [ ] 04:00 PM  Luna   Play time
+  [ ] 06:00 PM  Rex    Evening walk
+
+Filter: pet name 'rex':
+  [ ] 07:30 AM  Rex    Morning walk
+  [ ] 09:00 AM  Rex    Vet check
+  [ ] 06:00 PM  Rex    Evening walk
+
+Filter: pet name 'Luna':
+  [x] 07:40 AM  Luna   Breakfast
+  [ ] 09:00 AM  Luna   Grooming
+  [ ] 12:15 PM  Luna   Flea medication
+  [ ] 12:15 PM  Luna   Brush fur
+  [ ] 04:00 PM  Luna   Play time
+
+Filter: pending only:
+  [ ] 07:30 AM  Rex    Morning walk
+  [ ] 09:00 AM  Luna   Grooming
+  [ ] 09:00 AM  Rex    Vet check
+  [ ] 12:15 PM  Luna   Flea medication
+  [ ] 12:15 PM  Luna   Brush fur
+  [ ] 04:00 PM  Luna   Play time
+  [ ] 06:00 PM  Rex    Evening walk
+
+Filter: completed only:
+  [x] 07:40 AM  Luna   Breakfast
+
+Filter: Luna + pending:
+  [ ] 09:00 AM  Luna   Grooming
+  [ ] 12:15 PM  Luna   Flea medication
+  [ ] 12:15 PM  Luna   Brush fur
+  [ ] 04:00 PM  Luna   Play time
+
+Today's Schedule for Alex Rivera (Sunday, October 18, 2026)
+----------------------------------------------------------------
+[ ] 07:30 AM-08:00 AM  Rex    Morning walk (once)
+[x] 07:40 AM-07:50 AM  Luna   Breakfast (once)
+[ ] 09:00 AM-09:30 AM  Luna   Grooming (once)
+[ ] 09:00 AM-10:00 AM  Rex    Vet check (once)
+[ ] 12:15 PM-12:20 PM  Luna   Flea medication (once)
+[ ] 12:15 PM-12:25 PM  Luna   Brush fur (once)
+[ ] 04:00 PM-04:20 PM  Luna   Play time (once)
+[ ] 06:00 PM-06:45 PM  Rex    Evening walk (once)
+Warning: Luna's 'Grooming' (09:00 AM-09:30 AM) overlaps Rex's 'Vet check' (09:00 AM-10:00 AM).
+Warning: Luna has overlapping tasks: 'Flea medication' (12:15 PM-12:20 PM) and 'Brush fur' (12:15 PM-12:25 PM).
+```
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->

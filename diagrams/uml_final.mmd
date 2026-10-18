@@ -1,0 +1,76 @@
+classDiagram
+    class Frequency {
+        <<enumeration>>
+        ONCE
+        DAILY
+        WEEKLY
+    }
+
+    class Task {
+        +str description
+        +datetime time
+        +Frequency frequency
+        +bool completed
+        +Pet pet
+        +int durationMinutes
+        +list~int~ weekdays
+        +str seriesId
+        +endTime() datetime
+        +overlaps(other) bool
+        +markComplete(now) Task
+        +reschedule(newTime) void
+        +nextOccurrence(after) Task
+        -step(start) datetime
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +str breed
+        +int age
+        +Owner owner
+        +list~Task~ tasks
+        +editPet(name, species, breed, age) void
+        +addTask(task) Task
+        +removeTask(task) void
+    }
+
+    class Owner {
+        +str name
+        +str email
+        +str phone
+        +list~Pet~ pets
+        +editOwner(name, email, phone) void
+        +addPet(pet) Pet
+        +removePet(pet) void
+        +getAllTasks() list~Task~
+    }
+
+    class Scheduler {
+        +Owner owner
+        +getAllTasks() list~Task~
+        +sortByTime(tasks) list~Task~
+        +filterTasks(pet, completed, day, petName) list~Task~
+        +getTasksForDay(day, includeCompleted) list~Task~
+        +getTasksForPet(pet) list~Task~
+        +getPendingTasks() list~Task~
+        +getOverdueTasks(now) list~Task~
+        +findConflicts() list
+        +conflictsWith(task) list~Task~
+        +getConflictWarnings() list~str~
+        +conflictWarningFor(task, pet) str
+        +findNextFreeSlot(after, durationMinutes) datetime
+        +addTask(pet, task, allowPast) Task
+        +completeTask(task, now) Task
+        +cancelTask(task) void
+        +cancelSeries(task) int
+        -sortKey(task) tuple
+        -warning(a, b, petA) str
+    }
+
+    Owner "1" *-- "0..*" Pet : owns
+    Pet "1" *-- "0..*" Task : has
+    Task --> Frequency : repeats
+    Task ..> Task : nextOccurrence creates
+    Scheduler --> Owner : reads getAllTasks()
+    Scheduler ..> Task : sorts, filters, checks conflicts

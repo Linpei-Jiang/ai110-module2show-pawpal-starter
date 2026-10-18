@@ -280,7 +280,7 @@ class Scheduler:
         name_a = pet_a.name if pet_a else "(no pet)"
         name_b = b.pet.name if b.pet else "(no pet)"
         if pet_a is b.pet:
-            return f"Warning: {name_a} has two tasks at the same time: '{a.description}' ({span(a)}) and '{b.description}' ({span(b)})."
+            return f"Warning: {name_a} has overlapping tasks: '{a.description}' ({span(a)}) and '{b.description}' ({span(b)})."
         return (
             f"Warning: {name_a}'s '{a.description}' ({span(a)}) overlaps "
             f"{name_b}'s '{b.description}' ({span(b)})."

@@ -17,9 +17,10 @@ classDiagram
         +str seriesId
         +endTime() datetime
         +overlaps(other) bool
-        +markComplete() void
+        +markComplete(now) Task
         +reschedule(newTime) void
         +nextOccurrence(after) Task
+        -step(start) datetime
     }
 
     class Pet {
@@ -49,21 +50,27 @@ classDiagram
         +Owner owner
         +getAllTasks() list~Task~
         +sortByTime(tasks) list~Task~
-        +filterTasks(pet, completed, day) list~Task~
+        +filterTasks(pet, completed, day, petName) list~Task~
         +getTasksForDay(day, includeCompleted) list~Task~
         +getTasksForPet(pet) list~Task~
         +getPendingTasks() list~Task~
         +getOverdueTasks(now) list~Task~
         +findConflicts() list
         +conflictsWith(task) list~Task~
+        +getConflictWarnings() list~str~
+        +conflictWarningFor(task, pet) str
         +findNextFreeSlot(after, durationMinutes) datetime
         +addTask(pet, task, allowPast) Task
         +completeTask(task, now) Task
         +cancelTask(task) void
         +cancelSeries(task) int
+        -sortKey(task) tuple
+        -warning(a, b, petA) str
     }
 
-    Owner "1" <--> "0..*" Pet : owns
-    Pet "1" <--> "0..*" Task : has
-    Task --> Frequency : frequency
-    Scheduler "1" --> "1" Owner : reads getAllTasks()
+    Owner "1" *-- "0..*" Pet : owns
+    Pet "1" *-- "0..*" Task : has
+    Task --> Frequency : repeats
+    Task ..> Task : nextOccurrence creates
+    Scheduler --> Owner : reads getAllTasks()
+    Scheduler ..> Task : sorts, filters, checks conflicts

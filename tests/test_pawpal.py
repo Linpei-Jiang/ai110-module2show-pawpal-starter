@@ -248,7 +248,7 @@ def test_warning_messages_for_same_pet_and_different_pets(setup):
     warnings = s.get_conflict_warnings()
 
     assert len(warnings) == 3
-    assert any("Luna has two tasks at the same time" in w for w in warnings)
+    assert any("Luna has overlapping tasks" in w for w in warnings)
     assert any("Rex's 'Vet check'" in w and "Luna's 'Grooming'" in w for w in warnings)
 
 
@@ -260,7 +260,7 @@ def test_no_warnings_when_clear_and_candidate_check_never_raises(setup):
     assert s.conflict_warning_for(Task("Dinner", at(18))) is None
     vet = Task("Vet", at(8))  # not attached to a pet yet, same time as Rex's walk
     assert "Luna's 'Vet'" in s.conflict_warning_for(vet, luna)
-    assert "Rex has two tasks at the same time" in s.conflict_warning_for(vet, rex)
+    assert "Rex has overlapping tasks" in s.conflict_warning_for(vet, rex)
 
 
 # =============================================================================
@@ -380,7 +380,7 @@ def test_two_tasks_at_the_exact_same_time_for_the_same_pet_conflict(setup):
     b = rex.add_task(Task("Brush", at(8)))
 
     assert s.find_conflicts() == [(a, b)]
-    assert "Rex has two tasks at the same time" in s.get_conflict_warnings()[0]
+    assert "Rex has overlapping tasks" in s.get_conflict_warnings()[0]
 
 
 def test_three_tasks_at_the_same_time_give_three_pairs(setup):
